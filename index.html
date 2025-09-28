@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>德州撲克 – 雙人撲克遊戲</title>
+  <style>
+    /* ============================ */
+    /* 基本設定                     */
+    /* ============================ */
+    body {
+      margin: 0;
+      padding: 0;
+      background: #222;
+      font-family: 'Microsoft JhengHei', 'PingFang TC', 'Heiti TC', sans-serif;
+      color: #eee;
+      user-select: none;
+      overflow-y: auto;
+    }
+    /* 主要容器 */
+    #gameContainer {
+      width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #333;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #000;
+    }
+    h1 {
+      text-align: center;
+      color: #0f0;
+      text-shadow: 0 0 10px #0f0;
+    }
+    /* ============================ */
+    /* HUD 和訊息                   */
+    /* ============================ */
+    #hud {
+      font-size: 20px;
+      margin-bottom: 10px;
+      text-align: center;
+      color: #0f0;
+      text-shadow: 0 0 8px #0f0;
+    }
+    #messages {
+      text-align: center;
+      margin: 10px 0;
+      font-size: 18px;
+      color: #0f0;
+      text-shadow: 0 0 6px #0f0;
+    }
+    /* ============================ */
+    /* 區域佈局                     */
+    /* ============================ */
+    .section {
+      margin-bottom: 20px;
+      padding: 10px;
+      background: #444;
+      border-radius: 5px;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      text-align: center;
+      text-shadow: 0 0 6px #0f0;
+    }
+    .cardsContainer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    /* ============================ */
+    /* 卡牌樣式                     */
+    /* ============================ */
+    .card {
+      width: 80px;
+      height: 120px;
+      background: #fff;
+      border: 2px solid #999;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px;
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(0,0,0,0.5);
+      transition: transform 0.1s ease;
+    }
+    .card:hover {
+      transform: scale(1.05);
+    }
+    .card .value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #222;
+    }
+    .card .suit {
+      font-size: 32px;
+    }
+    .card-back {
+      background: linear-gradient(45deg, #999, #666);
+      color: transparent;
+    }
+    /* ============================ */
+    /* 下注控制和進行控制           */
+    /* ============================ */
+    #betControls, #advanceControls {
+      text-align: center;
+      margin: 20px 0;
+    }
+    #betControls button, #advanceControls button {
+      background: #0f0;
+      color: #222;
+      border: none;
+      border-radius: 5px;
+      padding: 10px 20px;
+      font-size: 18px;
+      margin: 5px;
+      cursor: pointer;
+      box-shadow: 0 0 6px #0f0;
+      text-shadow: 0 0 3px #fff;
+    }
+    /* 額外按鈕（例如說明） */
+    #extraControls {
+      text-align: center;
+      margin-top: 10px;
+    }
+    #extraControls button {
+      background: #0f0;
+      color: #222;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 0 0 6px #0f0;
+      text-shadow: 0 0 3px #fff;
+    }
+    /* ============================ */
+    /* 覆蓋層：說明、遊戲結束、開始 */
+    /* ============================ */
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      text-align: center;
+      color: #0f0;
+      text-shadow: 0 0 8px #0f0;
+    }
+    .overlay.hidden { display: none; }
+    .overlay p {
+      font-size: 20px;
+      max-width: 600px;
+      margin: 10px;
+      line-height: 1.4;
+    }
+    .overlay button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 20px;
+      background: #0f0;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      box-shadow: 0 0 6px #0f0;
+    }
+  </style>
+</head>
+<body>
+  <!-- 遊戲區域 -->
+  <div id="gameContainer">
+    <h1>德州撲克 – 雙人對戰</h1>
+    <div id="hud">
+      狀態：翻牌前<br>
+      籌碼：您 1000 元 - 電腦 1000 元<br>
+      彩池：30 元
+    </div>
+    <div id="messages"></div>
+    
+    <div class="section">
+      <div class="section-title">公共牌</div>
+      <div id="communityCards" class="cardsContainer"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">您的手牌</div>
+      <div id="playerCards" class="cardsContainer"></div>
+    </div>
+    <div class="section">
+      <div class="section-title">電腦手牌</div>
+      <div id="botCards" class="cardsContainer"></div>
+    </div>
+    
+    <!-- 下注控制（僅翻牌前） -->
+    <div id="betControls" class="hidden">
+      <button id="callBtn">跟注/過牌</button>
+      <button id="betBtn">加注 (+20)</button>
+      <button id="foldBtn">棄牌</button>
+      <br>
+      <span id="betInstructions">請選擇您的翻牌前動作</span>
+    </div>
+    
+    <!-- 推進階段控制 -->
+    <div id="advanceControls" class="hidden"></div>
+    
+    <!-- 額外控制 -->
+    <div id="extraControls">
+      <button id="helpBtn">遊戲說明</button>
+    </div>
+  </div>
+  
+  <!-- 說明覆蓋層 -->
+  <div id="helpOverlay" class="overlay hidden">
+    <p>
+      <strong>德州撲克規則（簡化版）</strong><br>
+      • 每位玩家獲得 2 張底牌（手牌）。<br>
+      • 發出 5 張公共牌：翻牌（3 張）、轉牌（1 張）及河牌（1 張）。<br>
+      • 翻牌前您支付小盲注（10 籌碼），電腦支付大盲注（20 籌碼）→ 初始彩池：30 元。<br>
+      • 翻牌前選擇：「跟注/過牌」補齊至 20（再加 10），「加注」額外下注 20，或「棄牌」放棄此局（電腦獲勝）。<br>
+      • 翻牌前結束後，按「推進」繼續：第1次點擊顯示翻牌，第2次顯示轉牌，第3次顯示河牌，第4次進行攤牌。<br>
+      • 攤牌比較最佳 5 張牌組合（從 7 張中選擇：2 張手牌 + 5 張公共牌），按標準排序決定勝負。獲勝者取得彩池。<br>
+      • 每局更新籌碼；若牌堆不足，顯示最終總結（遊戲結束）。
+    </p>
+    <button id="closeHelpBtn">關閉說明</button>
+  </div>
+  
+  <!-- 遊戲結束覆蓋層 -->
+  <div id="gameOverOverlay" class="overlay hidden">
+    <p id="gameOverMsg"></p>
+    <button id="restartBtn">新局開始</button>
+  </div>
+  
+  <!-- 開始覆蓋層 -->
+  <div id="startOverlay" class="overlay">
+    <p>
+      <strong>德州撲克 – 雙人對戰撲克</strong><br>
+      初始籌碼：每人 1000 元
+    </p>
+    <button id="startBtn">開始遊戲</button>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // --------------------------
+      // 卡牌渲染函數
+      // --------------------------
+      function renderCard(card) {
+        let div = document.createElement("div");
+        div.className = "card";
+        let parts = card.display.split(" ");
+        div.innerHTML = `<div class="value">${parts[0]}</div><div class="suit">${parts[1]}</div>`;
+        return div;
+      }
+      function renderCardBack() {
+        let div = document.createElement("div");
+        div.className = "card card-back";
+        div.textContent = "🂠";
+        return div;
+      }
+      
+      // --------------------------
+      // 遊戲全域變數
+      // --------------------------
+      let _deck, _playerHole = [], _botHole = [], _community = [];
+      let _playerChips = 1000, _botChips = 1000, _pot = 30;
+      let _stage = "preflop"; // 可能階段："preflop", "flop", "turn", "river", "showdown"
+      let _currentBet = 20;   // 大盲注
+      let _betPlaced = false;
+      let advanceCount = 0;
+      
+      const suits = ["♠", "♥", "♦", "♣"];
+      const ranks = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+      const rankValues = {"2":2, "3":3, "4":4, "5":5, "6":6, "7":7, "8":8, "9":9, "10":10, "J":11, "Q":12, "K":13, "A":14};
+      
+      // --------------------------
+      // DOM 元素
+      // --------------------------
+      const hudEl = document.getElementById("hud");
+      const messagesEl = document.getElementById("messages");
+      const communityCardsEl = document.getElementById("communityCards");
+      const playerCardsEl = document.getElementById("playerCards");
+      const botCardsEl = document.getElementById("botCards");
+      
+      const betControlsEl = document.getElementById("betControls");
+      const advanceControlsEl = document.getElementById("advanceControls");
+      const callBtn = document.getElementById("callBtn");
+      const betBtn = document.getElementById("betBtn");
+      const foldBtn = document.getElementById("foldBtn");
+      
+      const helpBtn = document.getElementById("helpBtn");
+      const closeHelpBtn = document.getElementById("closeHelpBtn");
+      const gameOverOverlay = document.getElementById("gameOverOverlay");
+      const gameOverMsgEl = document.getElementById("gameOverMsg");
+      const restartBtn = document.getElementById("restartBtn");
+      const startOverlay = document.getElementById("startOverlay");
+      const startBtn = document.getElementById("startBtn");
+      
+      // --------------------------
+      // 牌堆函數
+      // --------------------------
+      function createDeck() {
+        let d = [];
+        for (let suit of suits) {
+          for (let rank of ranks) {
+            d.push({
+              rank: rank,
+              suit: suit,
+              value: rankValues[rank],
+              display: rank + " " + suit
+            });
+          }
+        }
+        return d;
+      }
+      
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+      }
+      
+      // --------------------------
+      // 生成組合函數（用於評估手牌）
+      // --------------------------
+      function getCombinations(array, k) {
+        let results = [];
+        function helper(start, combo) {
+          if (combo.length === k) {
+            results.push([...combo]);
+            return;
+          }
+          for (let i = start; i < array.length; i++) {
+            combo.push(array[i]);
+            helper(i + 1, combo);
+            combo.pop();
+          }
+        }
+        helper(0, []);
+        return results;
+      }
+      
+      // --------------------------
+      // 手牌評估（5張牌）– 簡化演算法
+      // --------------------------
+      function evaluateFiveCardHand(hand) {
+        let cards = hand.slice().sort((a, b) => b.value - a.value);
+        let values = cards.map(c => c.value);
+        let suitsArr = cards.map(c => c.suit);
+        let flush = suitsArr.every(s => s === suitsArr[0]);
+      
+        let isStraight = false;
+        let straightHigh = 0;
+        let uniqueValues = [...new Set(values)];
+        uniqueValues.sort((a, b) => b - a);
+        if (uniqueValues.length >= 5) {
+          for (let i = 0; i <= uniqueValues.length - 5; i++) {
+            let seq = uniqueValues.slice(i, i + 5);
+            if (seq[0] - seq[4] === 4) {
+              isStraight = true;
+              straightHigh = seq[0];
+              break;
+            }
+          }
+          if (!isStraight && uniqueValues.includes(14)) {
+            let mapped = uniqueValues.map(v => v === 14 ? 1 : v);
+            mapped.sort((a, b) => b - a);
+            for (let i = 0; i <= mapped.length - 5; i++) {
+              let seq = mapped.slice(i, i + 5);
+              if (seq[0] - seq[4] === 4) {
+                isStraight = true;
+                straightHigh = (seq[0] === 1 ? 5 : seq[0]);
+                break;
+              }
+            }
+          }
+        }
+      
+        let counter = {};
+        for (let c of cards) {
+          counter[c.value] = (counter[c.value] || 0) + 1;
+        }
+        let groups = Object.entries(counter).map(e => [parseInt(e[0]), e[1]]);
+        groups.sort((a, b) => {
+          if (b[1] === a[1]) return b[0] - a[0];
+          return b[1] - a[1];
+        });
+      
+        let handRank = 1;
+        let scoreArr = [];
+        if (flush && isStraight) {
+          handRank = 9;
+          scoreArr = [straightHigh];
+        } else if (groups[0][1] === 4) {
+          handRank = 8;
+          scoreArr = [groups[0][0]];
+          let kicker = values.filter(v => v !== groups[0][0])[0];
+          scoreArr.push(kicker);
+        } else if (groups[0][1] === 3 && groups[1] && groups[1][1] >= 2) {
+          handRank = 7;
+          scoreArr = [groups[0][0], groups[1][0]];
+        } else if (flush) {
+          handRank = 6;
+          scoreArr = values.slice(0, 5);
+        } else if (isStraight) {
+          handRank = 5;
+          scoreArr = [straightHigh];
+        } else if (groups[0][1] === 3) {
+          handRank = 4;
+          scoreArr = [groups[0][0]];
+          let remain = values.filter(v => v !== groups[0][0]).slice(0, 2);
+          scoreArr.push(...remain);
+        } else if (groups[0][1] === 2 && groups[1] && groups[1][1] === 2) {
+          handRank = 3;
+          scoreArr = [groups[0][0], groups[1][0]];
+          let kicker = values.filter(v => v !== groups[0][0] && v !== groups[1][0])[0];
+          scoreArr.push(kicker);
+        } else if (groups[0][1] === 2) {
+          handRank = 2;
+          scoreArr = [groups[0][0]];
+          let remain = values.filter(v => v !== groups[0][0]).slice(0, 3);
+          scoreArr.push(...remain);
+        } else {
+          handRank = 1;
+          scoreArr = values.slice(0, 5);
+        }
+        return [handRank, ...scoreArr];
+      }
+      
+      function compareHands(arr1, arr2) {
+        for (let i = 0; i < Math.max(arr1.length, arr2.length); i++) {
+          let a = arr1[i] || 0;
+          let b = arr2[i] || 0;
+          if (a > b) return 1;
+          if (a < b) return -1;
+        }
+        return 0;
+      }
+      
+      function evaluateHand(sevenCards) {
+        let combos = getCombinations(sevenCards, 5);
+        let best = null;
+        for (let hand of combos) {
+          let score = evaluateFiveCardHand(hand);
+          if (best === null || compareHands(score, best) > 0) best = score;
+        }
+        return best;
+      }
+      
+      // --------------------------
+      // 主要遊戲函數
+      // --------------------------
+      function initPoker() {
+        _deck = createDeck();
+        shuffle(_deck);
+        _playerHole = [_deck.pop(), _deck.pop()];
+        _botHole = [_deck.pop(), _deck.pop()];
+        _community = [];
+        _stage = "preflop";
+        _currentBet = 20;
+        _betPlaced = false;
+        _pot = 30; // 您：10，電腦：20
+        advanceCount = 0;
+        updatePokerDisplay();
+        updatePokerHUD();
+        messagesEl.textContent = "翻牌前：請選擇跟注/過牌、加注 (+20) 或棄牌";
+        betControlsEl.classList.remove("hidden");
+        advanceControlsEl.innerHTML = "";
+      }
+      
+      function updatePokerHUD() {
+        hudEl.innerHTML = `階段：${_stage}<br>
+                           籌碼：您 ${_playerChips} 元 - 電腦 ${_botChips} 元<br>
+                           彩池：${_pot} 元`;
+      }
+      
+      function updatePokerDisplay(revealBot = false) {
+        playerCardsEl.innerHTML = "";
+        _playerHole.forEach(card => { playerCardsEl.appendChild(renderCard(card)); });
+        botCardsEl.innerHTML = "";
+        _botHole.forEach(card => {
+          if (revealBot) botCardsEl.appendChild(renderCard(card));
+          else botCardsEl.appendChild(renderCardBack());
+        });
+        communityCardsEl.innerHTML = "";
+        _community.forEach(card => { communityCardsEl.appendChild(renderCard(card)); });
+      }
+      
+      // 翻牌前下注動作
+      function playerCall() {
+        // 您已支付 10；要達到 20 需再加 10
+        let toCall = _currentBet - 10;
+        if (_playerChips < toCall) {
+          messagesEl.textContent = "籌碼不足無法跟注！";
+          return;
+        }
+        _playerChips -= toCall;
+        _pot += toCall;
+        messagesEl.textContent = "您已跟注（跟注/過牌）。";
+        _betPlaced = true;
+        botCall();
+        // 下注後，創建推進按鈕
+        setTimeout(createAdvanceButton, 1000);
+        updatePokerHUD();
+      }
+      
+      function playerBet() {
+        let betAmount = (_currentBet + 20) - 10;
+        if (_playerChips < betAmount) {
+          messagesEl.textContent = "籌碼不足無法下注！";
+          return;
+        }
+        _playerChips -= betAmount;
+        _pot += betAmount;
+        _currentBet += 20;
+        messagesEl.textContent = "您已加注 (+20)。";
+        _betPlaced = true;
+        botCall();
+        setTimeout(createAdvanceButton, 1000);
+        updatePokerHUD();
+      }
+      
+      function playerFold() {
+        messagesEl.textContent = "您已棄牌。電腦贏得彩池。";
+        _botChips += _pot;
+        _pot = 0;
+        endHandPoker();
+      }
+      
+      function botCall() {
+        let toCall = _currentBet - 20; // 電腦已支付 20
+        if (_botChips >= toCall) {
+          _botChips -= toCall;
+          _pot += toCall;
+          messagesEl.innerHTML += "<br>電腦已跟注。";
+        }
+        updatePokerHUD();
+      }
+      
+      // --------------------------
+      // 手動推進階段
+      // --------------------------
+      // 翻牌前下注後，用戶點擊「推進」進入後續階段：
+      // 第1次：顯示翻牌（3張），第2次：轉牌（1張），第3次：河牌（1張），第4次：攤牌。
+      function advancePhase() {
+        advanceCount++;
+        if (advanceCount === 1) {
+          // 翻牌：發出 3 張公共牌
+          _community = _community.concat([_deck.pop(), _deck.pop(), _deck.pop()]);
+          _stage = "flop";
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "翻牌已發出。";
+          createAdvanceButton();
+        } else if (advanceCount === 2) {
+          // 轉牌：一張牌
+          _community.push(_deck.pop());
+          _stage = "turn";
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "轉牌已發出。";
+          createAdvanceButton();
+        } else if (advanceCount === 3) {
+          // 河牌：一張牌
+          _community.push(_deck.pop());
+          _stage = "river";
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "河牌已發出。";
+          createAdvanceButton();
+        } else if (advanceCount === 4) {
+          // 攤牌
+          advanceControlsEl.innerHTML = "";
+          showdown();
+        }
+      }
+      
+      function createAdvanceButton() {
+        advanceControlsEl.innerHTML = "";
+        let btn = document.createElement("button");
+        if (_stage === "preflop") btn.textContent = "顯示翻牌";
+        else if (_stage === "flop") btn.textContent = "顯示轉牌";
+        else if (_stage === "turn") btn.textContent = "顯示河牌";
+        else if (_stage === "river") btn.textContent = "攤牌";
+        btn.addEventListener("click", advancePhase);
+        advanceControlsEl.appendChild(btn);
+        advanceControlsEl.classList.remove("hidden");
+      }
+      
+      // 攤牌：比較最佳手牌（考慮 7 張牌：2 張手牌 + 5 張公共牌）
+      function showdown() {
+        if (_stage !== "river") return;
+        _stage = "showdown";
+        updatePokerDisplay(true);
+        updatePokerHUD();
+        hudEl.innerHTML += "<br>攤牌！";
+        let playerBest = evaluateHand(_playerHole.concat(_community));
+        let botBest = evaluateHand(_botHole.concat(_community));
+        let res = compareHands(playerBest, botBest);
+        let resultText = "";
+        if (res > 0) {
+          resultText = "您贏得此局！";
+          _playerChips += _pot;
+        } else if (res < 0) {
+          resultText = "電腦贏得此局！";
+          _botChips += _pot;
+        } else {
+          resultText = "平手！彩池平分。";
+          let half = _pot / 2;
+          _playerChips += half;
+          _botChips += half;
+        }
+        messagesEl.innerHTML = resultText + "<br>" +
+          `您的手牌（分數）：[${playerBest.join(", ")}]<br>` +
+          `電腦：[${botBest.join(", ")}]`;
+        _pot = 0;
+        updatePokerHUD();
+        setTimeout(endHandPoker, 2000);
+      }
+      
+      function endHandPoker() {
+        if (_deck.length < 5) {
+          let summary = `<strong>遊戲結束</strong><br>
+                         最終籌碼：您 ${_playerChips} 元 - 電腦 ${_botChips} 元<br>`;
+          if (_playerChips > _botChips) summary += "您贏得比賽！";
+          else if (_botChips > _playerChips) summary += "電腦贏得比賽！";
+          else summary += "比賽平手！";
+          gameOverMsgEl.innerHTML = summary;
+          gameOverOverlay.classList.remove("hidden");
+        } else {
+          // 新局：重置階段，發新手牌，彩池和重置推進按鈕
+          _stage = "preflop";
+          _currentBet = 20;
+          _pot = 30;
+          advanceCount = 0;
+          _playerHole = [_deck.pop(), _deck.pop()];
+          _botHole = [_deck.pop(), _deck.pop()];
+          _community = [];
+          updatePokerDisplay();
+          updatePokerHUD();
+          messagesEl.textContent = "翻牌前：請選擇跟注/過牌、加注 (+20) 或棄牌";
+          betControlsEl.classList.remove("hidden");
+          advanceControlsEl.innerHTML = "";
+        }
+      }
+      
+      // --------------------------
+      // 按鈕事件
+      // --------------------------
+      callBtn.addEventListener("click", function() { 
+        playerCall(); 
+        betControlsEl.classList.add("hidden"); 
+      });
+      betBtn.addEventListener("click", function() { 
+        playerBet(); 
+        betControlsEl.classList.add("hidden"); 
+      });
+      foldBtn.addEventListener("click", function() { 
+        playerFold(); 
+        betControlsEl.classList.add("hidden"); 
+      });
+      
+      helpBtn.addEventListener("click", function() { 
+        document.getElementById("helpOverlay").classList.remove("hidden"); 
+      });
+      closeHelpBtn.addEventListener("click", function() { 
+        document.getElementById("helpOverlay").classList.add("hidden"); 
+      });
+      restartBtn.addEventListener("click", function() { 
+        document.getElementById("gameOverOverlay").classList.add("hidden"); 
+        initPoker(); 
+      });
+      startBtn.addEventListener("click", function() { 
+        document.getElementById("startOverlay").classList.add("hidden"); 
+        initPoker(); 
+      });
+      
+      // --------------------------
+      // 應用程式初始化（顯示開始覆蓋層）
+      // --------------------------
+      function initApp() {
+        _playerChips = 1000;
+        _botChips = 1000;
+        document.getElementById("startOverlay").classList.remove("hidden");
+        document.getElementById("helpOverlay").classList.add("hidden");
+        document.getElementById("gameOverOverlay").classList.add("hidden");
+        hudEl.innerHTML = "階段：等待中";
+        messagesEl.textContent = "";
+      }
+      
+      initApp();
+    });
+  </script>
+</body>
+</html>
